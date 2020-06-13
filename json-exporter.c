@@ -40,26 +40,10 @@ void sig_handler(int e) {
     exit(e);
 }
 
-
-int main(int argc, char *argv[]) {
-    prom_collector_registry_default_init();
-    promhttp_set_active_collector_registry(NULL);
-    int port=8000;
-    if(argc > 1)
-        sscanf(argv[1], "%d", &port);
-
+void parse_input(json_error_t *jerror) {
     struct metric_elem *tmp_tab=NULL;
-    json_error_t jerror;
 
-    web_daemon=promhttp_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL);
-    if(daemon == NULL)
-        sig_handler(EXIT_FAILURE);
-
-    signal(SIGINT, sig_handler);
-    signal(SIGTERM, sig_handler);
-    signal(SIGSEGV, sig_handler);
-
-    while((pjson=json_loadf(stdin, JSON_DISABLE_EOF_CHECK, &jerror)) != NULL) {
+    while((pjson=json_loadf(stdin, JSON_DISABLE_EOF_CHECK, jerror)) != NULL) {
         double nval;
         const char *key;
         json_t *val;
@@ -82,8 +66,29 @@ int main(int argc, char *argv[]) {
             }
         }
         json_decref(pjson);
+		pjson=NULL;
     }
+}
 
+int main(int argc, char *argv[]) {
+    prom_collector_registry_default_init();
+    promhttp_set_active_collector_registry(NULL);
+
+    int port=8000;
+    if(argc > 1)
+        sscanf(argv[1], "%d", &port);
+
+    json_error_t jerror;
+
+    web_daemon=promhttp_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL);
+    if(web_daemon == NULL)
+        sig_handler(EXIT_FAILURE);
+
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
+    signal(SIGSEGV, sig_handler);
+
+    parse_input(&jerror);
 
     if(json_error_code(&jerror) != json_error_premature_end_of_input)
         fprintf(stderr, "%s\n", jerror.text);
