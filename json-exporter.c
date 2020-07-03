@@ -14,12 +14,44 @@ struct metric_elem {
     UT_hash_handle hh;
 };
 
-
-// gc collectable
+//for cleanup
 struct metric_elem *ltable;
 json_t *pjson;
 struct MHD_Daemon *web_daemon;
 
+void cleanup_table();
+void sig_handler(int);
+void parse_input(json_error_t *);
+
+
+int main(int argc, char *argv[]) {
+    int port=8000;
+    if(argc > 1 && sscanf(argv[1], "%d", &port) == 0){
+		fprintf(stderr, "Usage: %s [port]\n", argv[0]);
+		return EXIT_FAILURE;
+	}
+
+    json_error_t jerror;
+
+    prom_collector_registry_default_init();
+    promhttp_set_active_collector_registry(NULL);
+
+    web_daemon=promhttp_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL);
+    if(web_daemon == NULL)
+        sig_handler(EXIT_FAILURE);
+
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
+    signal(SIGSEGV, sig_handler);
+
+    parse_input(&jerror);
+
+    if(json_error_code(&jerror) != json_error_premature_end_of_input)
+        fprintf(stderr, "%s\n", jerror.text);
+
+    sig_handler(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
+}
 
 void cleanup_table() {
     struct metric_elem *c, *tmp;
@@ -34,6 +66,7 @@ void cleanup_table() {
 void sig_handler(int e) {
     if(pjson != NULL)
         json_decref(pjson);
+
     prom_collector_registry_destroy(PROM_COLLECTOR_REGISTRY_DEFAULT);
     MHD_stop_daemon(web_daemon);
     cleanup_table();
@@ -66,33 +99,6 @@ void parse_input(json_error_t *jerror) {
             }
         }
         json_decref(pjson);
-		pjson=NULL;
+        pjson=NULL;
     }
-}
-
-int main(int argc, char *argv[]) {
-    prom_collector_registry_default_init();
-    promhttp_set_active_collector_registry(NULL);
-
-    int port=8000;
-    if(argc > 1)
-        sscanf(argv[1], "%d", &port);
-
-    json_error_t jerror;
-
-    web_daemon=promhttp_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL);
-    if(web_daemon == NULL)
-        sig_handler(EXIT_FAILURE);
-
-    signal(SIGINT, sig_handler);
-    signal(SIGTERM, sig_handler);
-    signal(SIGSEGV, sig_handler);
-
-    parse_input(&jerror);
-
-    if(json_error_code(&jerror) != json_error_premature_end_of_input)
-        fprintf(stderr, "%s\n", jerror.text);
-
-    sig_handler(EXIT_SUCCESS);
-    return EXIT_SUCCESS;
 }
