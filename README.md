@@ -5,3 +5,5 @@
 
 # installation
 * make; sudo make install
+
+![wttr](wttr.png "Grafana")
