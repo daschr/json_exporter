@@ -19,19 +19,17 @@ struct metric_elem *ltable;
 json_t *pjson;
 struct MHD_Daemon *web_daemon;
 
-void cleanup_table();
+void cleanup_table(void);
 void sig_handler(int);
-void parse_input(json_error_t *);
+void parse_input(void);
 
 
 int main(int argc, char *argv[]) {
     int port=8000;
-    if(argc > 1 && sscanf(argv[1], "%d", &port) == 0){
-		fprintf(stderr, "Usage: %s [port]\n", argv[0]);
-		return EXIT_FAILURE;
-	}
-
-    json_error_t jerror;
+    if(argc > 1 && sscanf(argv[1], "%d", &port) == 0) {
+        fprintf(stderr, "Usage: %s [port]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
 
     prom_collector_registry_default_init();
     promhttp_set_active_collector_registry(NULL);
@@ -44,16 +42,13 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, sig_handler);
     signal(SIGSEGV, sig_handler);
 
-    parse_input(&jerror);
-
-    if(json_error_code(&jerror) != json_error_premature_end_of_input)
-        fprintf(stderr, "%s\n", jerror.text);
+    parse_input();
 
     sig_handler(EXIT_SUCCESS);
     return EXIT_SUCCESS;
 }
 
-void cleanup_table() {
+void cleanup_table(void) {
     struct metric_elem *c, *tmp;
 
     HASH_ITER(hh, ltable, c, tmp) {
@@ -73,10 +68,20 @@ void sig_handler(int e) {
     exit(e);
 }
 
-void parse_input(json_error_t *jerror) {
+void parse_input(void) {
     struct metric_elem *tmp_tab=NULL;
+    json_error_t jerror;
 
-    while((pjson=json_loadf(stdin, JSON_DISABLE_EOF_CHECK, jerror)) != NULL) {
+    for(;;) {
+        if((pjson=json_loadf(stdin, JSON_DISABLE_EOF_CHECK, &jerror)) == NULL) {
+            if(json_error_code(&jerror)==json_error_premature_end_of_input)
+                break;
+            else {
+                fprintf(stderr, "%s\n", jerror.text);
+                continue;
+            }
+        }
+
         double nval;
         const char *key;
         json_t *val;
