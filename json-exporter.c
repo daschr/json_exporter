@@ -21,7 +21,7 @@ struct MHD_Daemon *web_daemon;
 
 void cleanup_table(void);
 void sig_handler(int);
-void parse_input(void);
+int parse_input(void);
 
 
 int main(int argc, char *argv[]) {
@@ -42,10 +42,10 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, sig_handler);
     signal(SIGSEGV, sig_handler);
 
-    parse_input();
+    int ret=parse_input();
 
-    sig_handler(EXIT_SUCCESS);
-    return EXIT_SUCCESS;
+    sig_handler(ret);
+    return ret;
 }
 
 void cleanup_table(void) {
@@ -68,7 +68,7 @@ void sig_handler(int e) {
     exit(e);
 }
 
-void parse_input(void) {
+int parse_input(void) {
     struct metric_elem *tmp_tab=NULL;
     json_error_t jerror;
 
@@ -78,7 +78,7 @@ void parse_input(void) {
                 break;
             else {
                 fprintf(stderr, "%s\n", jerror.text);
-                continue;
+                return EXIT_FAILURE;
             }
         }
 
@@ -106,4 +106,6 @@ void parse_input(void) {
         json_decref(pjson);
         pjson=NULL;
     }
+
+    return EXIT_SUCCESS;
 }
